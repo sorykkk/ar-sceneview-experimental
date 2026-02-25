@@ -56,6 +56,7 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 
+    implementation("com.google.android.gms:play-services-location:21.1.0")
     implementation("androidx.appcompat:appcompat:1.6.1")
     implementation("io.github.sceneview:arsceneview:2.3.3")
     // It should be used only when the information about the user coordinates are requested
