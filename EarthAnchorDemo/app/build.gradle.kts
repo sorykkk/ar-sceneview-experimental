@@ -1,6 +1,13 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+}
+
+val localProperties = Properties().apply {
+    val f = rootProject.file("local.properties")
+    if (f.exists()) load(f.inputStream())
 }
 
 android {
@@ -19,6 +26,7 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        manifestPlaceholders["ARCORE_API_KEY"] = localProperties.getProperty("ARCORE_API_KEY", "")
     }
 
     buildTypes {
@@ -57,8 +65,7 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 
     implementation("androidx.appcompat:appcompat:1.6.1")
+    // AR dependencies
+    implementation("com.google.android.gms:play-services-location:21.1.0")
     implementation("io.github.sceneview:arsceneview:2.3.3")
-    // It should be used only when the information about the user coordinates are requested
-    // for example when checking the distance between user and placed model, and so on
-//    implementation("com.google.android.gms:play-services-location:21.2.0")
 }
