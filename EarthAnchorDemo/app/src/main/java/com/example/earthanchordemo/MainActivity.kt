@@ -34,6 +34,7 @@ class MainActivity : AppCompatActivity() {
     private val PERMISSION_REQUEST_CODE = 100
     private val modelPath = "models/chair.glb"
     private val altitudeAboveTerrain = 0.0
+    private val PLACEMENT_DISTANCE_M = 1.0 // metres ahead of camera
 
     private var isEarthTracking = false
     private var lastDebugUpdate = 0L
@@ -115,6 +116,7 @@ class MainActivity : AppCompatActivity() {
             if (session.isGeospatialModeSupported(Config.GeospatialMode.ENABLED)) {
                 config.geospatialMode = Config.GeospatialMode.ENABLED
             }
+            config.lightEstimationMode = Config.LightEstimationMode.ENVIRONMENTAL_HDR
         }
 
         sceneView.onSessionUpdated = onSessionUpdated@{ session, frame ->
@@ -173,8 +175,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         val pose = earth.cameraGeospatialPose
-        val lat = pose.latitude
-        val lon = pose.longitude
+        val (lat, lon) = Pair(pose.latitude, pose.longitude) //offsetByHeading(pose.latitude, pose.longitude, pose.heading, PLACEMENT_DISTANCE_M)
 
         earth.resolveAnchorOnTerrainAsync(lat, lon, altitudeAboveTerrain, 0f, 0f, 0f, 1f) { anchor, state ->
             runOnUiThread {
@@ -196,4 +197,15 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }
+
+    // private fun offsetByHeading(lat: Double, lon: Double, headingDeg: Double, distanceM: Double): Pair<Double, Double> {
+    //     val R = 6371000.0
+    //     val d = distanceM / R
+    //     val bearing = Math.toRadians(headingDeg)
+    //     val lat1 = Math.toRadians(lat)
+    //     val lon1 = Math.toRadians(lon)
+    //     val lat2 = Math.asin(Math.sin(lat1) * Math.cos(d) + Math.cos(lat1) * Math.sin(d) * Math.cos(bearing))
+    //     val lon2 = lon1 + Math.atan2(Math.sin(bearing) * Math.sin(d) * Math.cos(lat1), Math.cos(d) - Math.sin(lat1) * Math.sin(lat2))
+    //     return Pair(Math.toDegrees(lat2), Math.toDegrees(lon2))
+    // }
 }
