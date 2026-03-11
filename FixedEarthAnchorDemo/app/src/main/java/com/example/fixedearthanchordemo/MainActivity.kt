@@ -23,6 +23,7 @@ import com.google.ar.core.TrackingState
 import io.github.sceneview.ar.ARSceneView
 import io.github.sceneview.ar.node.AnchorNode
 import io.github.sceneview.node.ModelNode
+import java.util.Properties
 
 class MainActivity : AppCompatActivity() {
 
@@ -31,25 +32,23 @@ class MainActivity : AppCompatActivity() {
     private lateinit var debugOverlay: TextView
 
     private val PERMISSION_REQUEST_CODE = 100
-    private val modelPath = "models/chair.glb"
+    private val modelPath = "models/coloana.glb"
     private val altitudeAboveTerrain = 0.0
     private var lastDebugUpdate = 0L
 
-    private val constLat = 45.749138
-    private val constLon = 21.241882
+    private var constLat = 0.0
+    private var constLon = 0.0
 
     // Real GPS from LocationManager
     private lateinit var locationManager: LocationManager
     private var lastGpsLocation: Location? = null
 
     // Target location for distance calculation
-    private val targetLocation = Location("target").apply {
-        latitude = constLat
-        longitude = constLon
-    }
+    private lateinit var targetLocation: Location
 
     // Track if model has been placed
     private var modelPlaced = false
+    private var readyToPlace = false
 
     private val gpsListener = object : LocationListener {
         override fun onLocationChanged(loc: Location) {
@@ -61,11 +60,35 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+        loadConfig()
+
         arContainer = findViewById(R.id.arContainer)
         debugOverlay = findViewById(R.id.debugOverlay)
 
+        findViewById<Button>(R.id.placeButton).setOnClickListener {
+            if (modelPlaced) {
+                Toast.makeText(this, "Model already placed", Toast.LENGTH_SHORT).show()
+            } else if (!readyToPlace) {
+                Toast.makeText(this, "Waiting for high accuracy tracking...", Toast.LENGTH_SHORT).show()
+            } else {
+                modelPlaced = true
+                placeModelOnTerrain()
+            }
+        }
+
         locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
         requestPermissionsIfNeeded()
+    }
+
+    private fun loadConfig() {
+        val props = Properties()
+        assets.open("config.properties").use { props.load(it) }
+        constLat = props.getProperty("CONST_LAT", "0.0").toDouble()
+        constLon = props.getProperty("CONST_LON", "0.0").toDouble()
+        targetLocation = Location("target").apply {
+            latitude = constLat
+            longitude = constLon
+        }
     }
 
     override fun onDestroy() {
@@ -127,10 +150,10 @@ class MainActivity : AppCompatActivity() {
             val now = System.currentTimeMillis()
             val trackingState = earth.trackingState
 
-            // Auto-place model once Earth is tracking
+            // Update readiness once Earth is tracking with high accuracy
             if (!modelPlaced && trackingState == TrackingState.TRACKING) {
-                modelPlaced = true
-                placeModelOnTerrain()
+                val pose = earth.cameraGeospatialPose
+                readyToPlace = pose.horizontalAccuracy < 1.0 && pose.orientationYawAccuracy < 10.0
             }
 
             // Update debug overlay with distance calculation
@@ -226,7 +249,7 @@ class MainActivity : AppCompatActivity() {
                     sceneView.modelLoader.loadModelAsync(modelPath) { model ->
                         runOnUiThread {
                             model?.let {
-                                val modelNode = ModelNode(modelInstance = it.instance, scaleToUnits = 2.0f)
+                                val modelNode = ModelNode(modelInstance = it.instance, scaleToUnits = 4.0f)
                                 anchorNode.addChildNode(modelNode)
                                 sceneView.addChildNode(anchorNode)
                                 Toast.makeText(this, "Model placed at target location!", Toast.LENGTH_SHORT).show()
