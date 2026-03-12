@@ -28,7 +28,6 @@
             </intent-filter>
         </activity>
         <!-- ARCore settings -->
-        <!-- ARCore settings -->
         <meta-data
             android:name="com.google.ar.core"
             android:value="required"

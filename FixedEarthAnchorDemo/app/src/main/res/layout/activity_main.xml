@@ -8,6 +8,7 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
+    <!-- Debug View -->
     <TextView
         android:id="@+id/debugOverlay"
         android:layout_width="match_parent"
@@ -20,6 +21,7 @@
         android:textColor="#00FF00"
         android:textSize="12sp" />
 
+    <!-- Placement button -->
     <Button
         android:id="@+id/placeButton"
         android:layout_width="wrap_content"

@@ -80,6 +80,7 @@ class MainActivity : AppCompatActivity() {
         requestPermissionsIfNeeded()
     }
 
+    // Get coordinates from file
     private fun loadConfig() {
         val props = Properties()
         assets.open("config.properties").use { props.load(it) }
@@ -97,6 +98,7 @@ class MainActivity : AppCompatActivity() {
         arSceneView?.destroy()
     }
 
+    // Request permissions if they were not provided during app start
     private fun requestPermissionsIfNeeded() {
         val permissions = arrayOf(
             Manifest.permission.CAMERA,
@@ -153,7 +155,7 @@ class MainActivity : AppCompatActivity() {
             // Update readiness once Earth is tracking with high accuracy
             if (!modelPlaced && trackingState == TrackingState.TRACKING) {
                 val pose = earth.cameraGeospatialPose
-                readyToPlace = pose.horizontalAccuracy < 1.0 && pose.orientationYawAccuracy < 10.0
+                readyToPlace = pose.horizontalAccuracy < 1.5 && pose.orientationYawAccuracy < 10.0
             }
 
             // Update debug overlay with distance calculation
