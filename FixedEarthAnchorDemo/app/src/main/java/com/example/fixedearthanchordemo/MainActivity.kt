@@ -24,12 +24,14 @@ import io.github.sceneview.ar.ARSceneView
 import io.github.sceneview.ar.node.AnchorNode
 import io.github.sceneview.node.ModelNode
 import java.util.Properties
+import com.google.ar.core.Frame
 
 class MainActivity : AppCompatActivity() {
 
     private var arSceneView: ARSceneView? = null
     private lateinit var arContainer: FrameLayout
     private lateinit var debugOverlay: TextView
+    private lateinit var compassArrow: CompassArrowView
 
     private val PERMISSION_REQUEST_CODE = 100
     private val modelPath = "models/coloana.glb"
@@ -46,9 +48,13 @@ class MainActivity : AppCompatActivity() {
     // Target location for distance calculation
     private lateinit var targetLocation: Location
 
-    // Track if model has been placed
-    private var modelPlaced = false
+    // Track if models have been placed
+    private var fixedModelPlaced = false
+    private var pointingModelPlaced = false
     private var readyToPlace = false
+
+    // Store latest AR frame for hit testing
+    private var lastFrame: Frame? = null
 
     private val gpsListener = object : LocationListener {
         override fun onLocationChanged(loc: Location) {
@@ -64,15 +70,27 @@ class MainActivity : AppCompatActivity() {
 
         arContainer = findViewById(R.id.arContainer)
         debugOverlay = findViewById(R.id.debugOverlay)
+        compassArrow = findViewById(R.id.compassArrow)
 
-        findViewById<Button>(R.id.placeButton).setOnClickListener {
-            if (modelPlaced) {
-                Toast.makeText(this, "Model already placed", Toast.LENGTH_SHORT).show()
+        findViewById<Button>(R.id.placeFixedButton).setOnClickListener {
+            if (fixedModelPlaced) {
+                Toast.makeText(this, "Fixed model already placed", Toast.LENGTH_SHORT).show()
             } else if (!readyToPlace) {
                 Toast.makeText(this, "Waiting for high accuracy tracking...", Toast.LENGTH_SHORT).show()
             } else {
-                modelPlaced = true
+                fixedModelPlaced = true
                 placeModelOnTerrain()
+            }
+        }
+
+        findViewById<Button>(R.id.placeHereButton).setOnClickListener {
+            if (pointingModelPlaced) {
+                Toast.makeText(this, "Pointing model already placed", Toast.LENGTH_SHORT).show()
+            } else if (!readyToPlace) {
+                Toast.makeText(this, "Waiting for high accuracy tracking...", Toast.LENGTH_SHORT).show()
+            } else {
+                pointingModelPlaced = true
+                placeModelWherePointing()
             }
         }
 
@@ -152,8 +170,11 @@ class MainActivity : AppCompatActivity() {
             val now = System.currentTimeMillis()
             val trackingState = earth.trackingState
 
+            // Store latest frame for hit testing
+            lastFrame = frame
+
             // Update readiness once Earth is tracking with high accuracy
-            if (!modelPlaced && trackingState == TrackingState.TRACKING) {
+            if ((!fixedModelPlaced || !pointingModelPlaced) && trackingState == TrackingState.TRACKING) {
                 val pose = earth.cameraGeospatialPose
                 readyToPlace = pose.horizontalAccuracy < 1.5 && pose.orientationYawAccuracy < 10.0
             }
@@ -214,9 +235,25 @@ class MainActivity : AppCompatActivity() {
                     if (pose != null) {
                         append("H-acc: %.1fm  Alt: %.1fm\n".format(pose.horizontalAccuracy, pose.altitude))
                     }
-                    append("Model placed: $modelPlaced\n")
+                    append("Fixed placed: $fixedModelPlaced\n")
+                    append("Pointing placed: $pointingModelPlaced\n")
                 }
-                runOnUiThread { debugOverlay.text = debugText }
+
+                // Calculate compass direction to target
+                val compassAngle = if (pose != null) {
+                    val arCoreLocation = Location("compass").apply {
+                        latitude = pose.latitude
+                        longitude = pose.longitude
+                    }
+                    val bearingToTarget = arCoreLocation.bearingTo(targetLocation)
+                    val deviceHeading = pose.heading.toFloat()
+                    bearingToTarget - deviceHeading
+                } else null
+
+                runOnUiThread {
+                    debugOverlay.text = debugText
+                    compassAngle?.let { compassArrow.setDirection(it) }
+                }
             }
         }
 
@@ -251,7 +288,7 @@ class MainActivity : AppCompatActivity() {
                     sceneView.modelLoader.loadModelAsync(modelPath) { model ->
                         runOnUiThread {
                             model?.let {
-                                val modelNode = ModelNode(modelInstance = it.instance, scaleToUnits = 4.0f)
+                                val modelNode = ModelNode(modelInstance = it.instance, scaleToUnits = 6.0f)
                                 anchorNode.addChildNode(modelNode)
                                 sceneView.addChildNode(anchorNode)
                                 Toast.makeText(this, "Model placed at target location!", Toast.LENGTH_SHORT).show()
@@ -260,11 +297,45 @@ class MainActivity : AppCompatActivity() {
                         }
                     }
                 } else {
+                    fixedModelPlaced = false  // Allow retry
                     val errorMsg = "Terrain anchor failed: $state"
                     Toast.makeText(this, errorMsg, Toast.LENGTH_LONG).show()
                     Log.e("ARCORE", errorMsg)
                 }
             }
+        }
+    }
+
+    private fun placeModelWherePointing() {
+        val sceneView = arSceneView ?: return
+        val frame = lastFrame ?: run {
+            Toast.makeText(this, "AR not ready", Toast.LENGTH_SHORT).show()
+            pointingModelPlaced = false
+            return
+        }
+
+        val centerX = sceneView.width / 2f
+        val centerY = sceneView.height / 2f
+        val hitResults = frame.hitTest(centerX, centerY)
+        val hit = hitResults.firstOrNull()
+
+        if (hit != null) {
+            val anchor = hit.createAnchor()
+            val anchorNode = AnchorNode(sceneView.engine, anchor)
+            sceneView.modelLoader.loadModelAsync(modelPath) { model ->
+                runOnUiThread {
+                    model?.let {
+                        val modelNode = ModelNode(modelInstance = it.instance, scaleToUnits = 6.0f)
+                        anchorNode.addChildNode(modelNode)
+                        sceneView.addChildNode(anchorNode)
+                        Toast.makeText(this, "Model placed where pointing!", Toast.LENGTH_SHORT).show()
+                        Log.i("ARCORE", "Model placed via hit test")
+                    }
+                }
+            }
+        } else {
+            pointingModelPlaced = false  // Allow retry
+            Toast.makeText(this, "No surface detected. Point at a visible surface.", Toast.LENGTH_SHORT).show()
         }
     }
 }
